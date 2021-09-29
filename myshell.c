@@ -40,8 +40,10 @@ main() {
   int block;
   int output;
   int input;
+  int append;
   char *output_filename;
   char *input_filename;
+  char *append_filename;
 
   // Set up the signal handler
   sigset(SIGCHLD, sig_handler);
@@ -79,6 +81,22 @@ main() {
       break;
     }
 
+    // Check for append input
+    append = append_output(args, &append_filename);
+
+    switch(append) {
+    case -1:
+      printf("Syntax error!\n");
+      continue;
+      break;
+    case 0:
+      break;
+    case 1:
+      printf("Appending output to: %s\n", append_filename);
+      break;
+    }    
+
+
     // Check for redirected output
     output = redirect_output(args, &output_filename);
 
@@ -94,25 +112,10 @@ main() {
       break;
     }
 
-    // Check for append input
-    output = append_output(args, &output_filename);
-
-    switch(output) {
-    case -1:
-      printf("Syntax error!\n");
-      continue;
-      break;
-    case 0:
-      break;
-    case 1:
-      printf("Appending output to: %s\n", output_filename);
-      break;
-    }    
-
     // Do the command
     do_command(args, block, 
 	       input, input_filename, 
-	       output, output_filename);
+	       output, output_filename, append, append_filename);
   }
 }
 
@@ -152,7 +155,7 @@ int internal_command(char **args) {
  */
 int do_command(char **args, int block,
 	       int input, char *input_filename,
-	       int output, char *output_filename) {
+	       int output, char *output_filename, int append, char *append_filename) {
   
   int result;
   pid_t child_id;
@@ -179,6 +182,9 @@ int do_command(char **args, int block,
 
     if(output)
       freopen(output_filename, "w+", stdout);
+  
+    if(append)
+      freopen(append_filename, "a+", stdout);
 
     // Execute the command
     result = execvp(args[0], args);
@@ -257,28 +263,28 @@ int redirect_output(char **args, char **output_filename) {
   return 0;
 }
 
-int append_output(char **args, char **output_filename) {
+int append_output(char **args, char **append_filename) {
 	int i;
 	int j;
 	
 	for(i = 0; args[i] != NULL; i++) {
 		// Look for the >>
 		// The parser doesn't parse the >> together
-		if(args[i][0] == '>' && args[i][1] =='>') {
+		if(args[i][0] == '>' && args[i+1][0] =='>') {
 			free(args[i]);
+			free(args[i+1]);
 
 			// Get the filename
-			if(args[i+1] != NULL) {
-				*output_filename = args[i+1];
+			if(args[i+2] != NULL) {
+				*append_filename = args[i+2];
 			} else {
 				return -1;
 			}
-
+			printf("filename: %s\n", *append_filename);
 			//Adjust the rest of the arguments in the array
 			for(j = i; args[j-1] != NULL; j++) {
-				args[j] = args[j+2];
+				args[j] = args[j+3];
 			}
-
 			return 1;
 		}
 	}
