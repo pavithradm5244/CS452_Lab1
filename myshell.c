@@ -146,6 +146,21 @@ int internal_command(char **args) {
   if(strcmp(args[0], "exit") == 0) {
     exit(0);
   }
+  
+  //cd command
+  if(strcmp(args[0], "cd") == 0) {
+    if(args[1] == NULL){
+      printf("Syntax error!\n");
+    }
+    else if(chdir(args[1]) < 0){
+      printf("No file directory named %s exists\n", args[1]);
+    }
+    else{
+      printf("Changing directory to: %s \n", args[1]);
+      chdir(args[1]);
+    }
+    return 1;
+  }
 
   return 0;
 }
