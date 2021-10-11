@@ -4,145 +4,96 @@
 #include <errno.h>
 
 extern char **getlineShell();
+void pipeIndex(char **args, int pipeNum, int pipeCollection[]);
 
 main() {
   int i;
   char **args; 
 
   while(1) {
-    args = getlineShell();
+	args = getlineShell();
+	
+	for(i = 0; args[i] != NULL; i++) {
+		printf("Argument %d: %s\n", i, args[i]);
+    	}
+	int fd[10][2];
 
 
 
-    int pipenum;
-    pipenum = pipeCheck(args);
+//	execvp(args[0], args);
+/*
+	int pipeNum = pipeNumCounter(args);
 
-    printf("the number of pipes is %d\n", pipenum);
+	printf("pipenum is %d\n",pipeNum);
 
-    myPipe(args, pipenum);
+	int pipeCollection[pipeNum];
+
+	pipeIndex(args, pipeNum, pipeCollection);
+	int i;
+	printf("pipenum in function is %d\n", pipeNum);
+	for(i=0;pipeCollection[i]!=NULL;i++) {
+		printf("pc index %d is %d\n", i, pipeCollection[i]);
+	}
+*/
   }
 }
 
-// Check if there is a |
-int pipeCheck(char **args) {
-	int i = 0;
-	int numPipes = 0;
-	for(i = 1; args[i] != NULL; i++) {
-		// this doesn't check the last index for pipes
-		if(args[i-1][0] == '|') {
-			numPipes++;
+/*
+//this is unused right now
+//this finds the max length of a column in a 2d array so that we dont waste memory when
+//we allocate a buffer in the future
+//probably unneeded but... who knows
+int maxSize(char **args) {
+	int max = 0;
+	int curr, i;
+
+	for(i=0; args[i]!=NULL; i++) {
+		curr = ((int) sizeof(args[i]) / sizeof(args[i][0]));	//get size of a column in the 2d array
+		if(curr > max) {
+			max = curr;
 		}
 	}
-	return numPipes;
+
+	return max;
 }
-
-
-
-int myPipe(char **args, int numPipes) {
-	int i = 0;
-	pid_t pid;
-	int index = pipeIndex(args);
-	printf("index is %d\n", index);
-
-//	if (index != -1) {
-		char** left[index-1];
-		char** right = {"more"};
-		for (i = 0; i < index; i++) {
-			printf("args %d is %s\n", i, args[i]);
-			left[i] = args[i];
-		}
-//	}
-	int j;
-
-	int result;
-
-	printf("executing left\n");
-	execvp(left[0], left);	
-
-
-	/*
-	int fd[2];
-	pipe(fd);
-
-
-	pid = fork();
-
-	if(pid == 0) {
-		dup2(fd[0], 1);
-		close(fd[1]);
-		close(fd[0]);
-		execvp(left[0], left);
-		fprintf(stderr, "Failed to execute left '%s'\n", left);
-		exit(1);
-	}
-
-	else {
-		pid=fork();
-
-		if(pid==0) {
-			dup2(fd[1], 1);
-			close(fd[0]);
-			close(fd[1]);
-			execvp(right[0], right);
-			fprintf(stderr, "Failed to execute right '%s'\n", right);
-			exit(1);
-		}
-		else {
-			int status;
-			close(fd[1]);
-			close(fd[0]);
-			waitpid(pid, &status, 0);
-		}
-	}
-
-
-	Ignore stuff below this
-=========================================
-	
-	int pipeNum = 0;
-	int fd[2 * numPipes];
-	
-	// we will close the input of the file if its not 0, then we'll make the output into a pipe
-	for(i = 0; i < (numPipes); i++){
-        	if(pipe(fd + i*2) < 0) {
-            		perror("couldn't pipe");
-        	}
-    	}
-	
-	int j = 0;
-	
-	while(args[j] != NULL) {
-		pid = fork();
-		if (pid == 0) {
-		
-			// This checks if the arg is the last one, if not redirects output
-			if(args[j+1] != NULL){
-               			if(dup2(fd[j + 1], 1) < 0){
-                			perror("dup2 failed");
-                		}
-            		}
-		
-			//If its not the first command, redirects input
-			if(j != 0) {
-				if(dup2(fd[j-2], 0) < 0){
-					perror(" dup2 failed on input");
-				}
-			}
-		}
-	}
 */
+
+//need indices of pipes first
+char** arrSlice(char **args, int start, int end) {
+	int sliceSize = end - start - 1;
+
+//	char** sliced[sliceSize][];
+
 	
 	
+
+}
+
+int pipeNumCounter(char **args) {
+	int i, pipeNum = 0;
+	for(i = 0; args[i] != NULL; i++) {
+		if(args[i][0] == '|') {
+			pipeNum++;
+		}	
+	}
+	return pipeNum;
+}
+
+// modifies pipenumc array with indices the indexes of the pipes
+void pipeIndex(char **args, int pipeNum, int pipeCollection[]) {
+	
+	int k;
+	int j = 0; // indexer for pipeCollection
+	for(k = 0; args[k] != NULL; k++) {
+		printf("%d", k);
+		if(args[k][0] == '|') {
+			(pipeCollection)[j] = k;
+			j++;
+		}
+	}
 	
 }
 
-int pipeIndex(char** args) {
-	int i;
-	for( i = 0; args[i] != NULL; i++) {
-		if(args[i][0] == '|') {
-			return i;
-		}
-	}
-	return -1;
-}
+
+
 
