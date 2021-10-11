@@ -30,16 +30,44 @@ void sig_handler(int signal) {
   printf("Wait returned %d\n", result);
 }
 
+int and_command(char **args, char **command){
+	int a;
+	int b;
+	int c = 0;
+
+	for(a = 1; args[a] != NULL; a++){
+		if(args[a][0] == '&' && args[a-1][0] == '&'){
+      printf("and found\n");
+			free(args[a-1]);
+			args[a-1] = NULL;
+			free(args[a]);
+			args[a] = NULL;
+
+			for(b = a+1; args[b] != NULL; b++){
+        printf(args[b]);
+				command[c] = args[b];
+				c++;
+			}
+      printf("\n");
+      printf("%s\n", command[1]);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /*
  * The main shell function
  */ 
 main() {
   int i;
   char **args; 
+  char **command;
   int result;
   int block;
   int output;
   int input;
+  int logicalAnd;
   int append;
   char *output_filename;
   char *input_filename;
@@ -60,8 +88,14 @@ main() {
       continue;
 
     // Check for internal shell commands, such as exit
-    if(internal_command(args))
-      continue;
+    if(internal_command(args)){
+          continue;
+	  }
+
+    //Check for logicalAnd
+    printf("checking for &&\n");
+    command = malloc(30 * sizeof(char*));
+    logicalAnd = and_command(args, command);
 
     // Check for an ampersand
     block = (ampersand(args) == 0);
@@ -113,7 +147,7 @@ main() {
     }
 
     // Do the command
-    do_command(args, block, 
+    do_command(args, block, logicalAnd, command,
 	       input, input_filename, 
 	       output, output_filename, append, append_filename);
   }
@@ -168,13 +202,15 @@ int internal_command(char **args) {
 /* 
  * Do the command
  */
-int do_command(char **args, int block,
+int do_command(char **args, int block, int logicalAnd, char **command,
 	       int input, char *input_filename,
 	       int output, char *output_filename, int append, char *append_filename) {
   
   int result;
   pid_t child_id;
   int status;
+
+  printf("%d\n", logicalAnd);
 
   // Fork the child process
   child_id = fork();
@@ -197,7 +233,8 @@ int do_command(char **args, int block,
 
     if(output)
       freopen(output_filename, "w+", stdout);
-  
+
+  
     if(append)
       freopen(append_filename, "a+", stdout);
 
@@ -212,7 +249,13 @@ int do_command(char **args, int block,
     printf("Waiting for child, pid = %d\n", child_id);
     result = waitpid(child_id, &status, 0);
   }
+  
+  if(logicalAnd){
+    // if args true, execute args and command
+  }
+  
 }
+
 
 /*
  * Check for input redirection
