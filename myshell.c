@@ -29,17 +29,43 @@ extern char **getlineShell();
   printf("Wait returned %d\n", result);
 }*/
 
+//Logical And
+int and_command(char **args, char **command){
+	int a;
+	int b;
+	int c = 0;
+
+	for(a = 1; args[a] != NULL; a++){
+		if(args[a][0] == '&' && args[a-1][0] == '&'){   //if && found
+			free(args[a-1]);
+			args[a-1] = NULL;
+			free(args[a]);
+			args[a] = NULL;
+
+			for(b = a+1; args[b] != NULL; b++){   //copy command after && into command array
+        //printf(args[b]);
+				command[c] = args[b];
+				c++;
+			}
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /*
  * The main shell function
  */ 
 main() {
   int i;
-  char **args; 
+  char **args;
+  char **command; 
   int result;
   int block;
   int output;
   int input;
   int append;
+  int logicalAnd;
   char *output_filename;
   char *input_filename;
   char *append_filename;
@@ -62,8 +88,13 @@ main() {
     if(internal_command(args))
       continue;
 
+    //Check for logicalAnd.
+    command = malloc(30 * sizeof(char*));
+    logicalAnd = and_command(args, command);
+    
     // Check for an ampersand
-    block = (ampersand(args) == 0);		    
+    block = (ampersand(args) == 0);
+		    
     
     //Check for redirected input
     input = redirect_input(args, &input_filename);
@@ -112,7 +143,7 @@ main() {
     }
 
     // Do the command
-    do_command(args, block, 
+    do_command(args, block, logicalAnd, command,
 	       input, input_filename, 
 	       output, output_filename, append, append_filename);
   }
@@ -167,7 +198,7 @@ int internal_command(char **args) {
 /* 
  * Do the command
  */
-int do_command(char **args, int block,
+int do_command(char **args, int block, int logicalAnd, char **command,
 	       int input, char *input_filename,
 	       int output, char *output_filename, int append, char *append_filename) {
   
@@ -200,7 +231,8 @@ int do_command(char **args, int block,
 
     if(output)
       freopen(output_filename, "w+", stdout);
-  
+
+  
     if(append)
       freopen(append_filename, "a+", stdout);
 
@@ -221,6 +253,43 @@ int do_command(char **args, int block,
     tcsetpgrp(0, parent_gid);
     signal(SIGCHLD, SIG_IGN);
     result = waitpid(-1, &status, WNOHANG);
+  }
+
+  //If command has a logical And (&&)
+  if(logicalAnd){
+    //Set up to check for another &&
+    char **command2;
+
+    //Check if first argument is == false
+    int dif;
+    dif = strcmp(args[0], "false");
+
+    //Check for 2nd &&, save to new command array
+    command2 = malloc(30 * sizeof(char*));
+    logicalAnd = and_command(command, command2);
+
+    if(logicalAnd > 0){   //If 2d && found
+      printf("%s\n", command2[0]);
+      printf("%d\n", dif);
+      if(result > 0 && (dif >0 || dif < 0)){   //if result executed and first arg isnt false
+        //Do second command
+        do_command(command, block, 0, command,
+          input, input_filename, 
+          output, output_filename, append, append_filename);
+        //Do third command
+        do_command(command2, block, 0, command,
+          input, input_filename, 
+          output, output_filename, append, append_filename);
+      }
+      
+    } else {  //if only one &&
+      if(result > 0 && (dif >0 || dif < 0)){
+        //Do second command
+        do_command(command, block, 0, command,
+          input, input_filename, 
+          output, output_filename, append, append_filename);
+        }
+    }
   }
 }
 
