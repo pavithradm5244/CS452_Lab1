@@ -63,9 +63,9 @@ main() {
       continue;
 
     // Check for an ampersand
-    block = (ampersand(args) == 0);
-
-    // Check for redirected input
+    block = (ampersand(args) == 0);		    
+    
+    //Check for redirected input
     input = redirect_input(args, &input_filename);
 
     switch(input) {
@@ -175,7 +175,8 @@ int do_command(char **args, int block,
   pid_t child_id;
   int status;
   pid_t parent_gid;
-
+  
+  //Get parent process group id
   parent_gid = getpgid(0);
 
   // Fork the child process
@@ -193,9 +194,6 @@ int do_command(char **args, int block,
 
   if(child_id == 0) {
 
-    //change child process group
-    setpgid(child_id, 0);
-
     // Set up redirection in the child process
     if(input)
       freopen(input_filename, "r", stdin);
@@ -207,11 +205,11 @@ int do_command(char **args, int block,
       freopen(append_filename, "a+", stdout);
 
     // Execute the command
-    result = execvp(args[0], args);
-    if(!block){
+   if(!block){
 	printf("Executing background process with pid %d\n", child_id);
-	tcsetpgrp(0, parent_gid);
+	setpgid(child_id, 0);
     }
+    result = execvp(args[0], args);
     exit(-1);
   }
 
@@ -219,6 +217,10 @@ int do_command(char **args, int block,
   if(block) {
     printf("Waiting for child, pid = %d\n", child_id);
     result = waitpid(child_id, &status, 0);
+  }else{
+    tcsetpgrp(0, parent_gid);
+    signal(SIGCHLD, SIG_IGN);
+    result = waitpid(-1, &status, WNOHANG);
   }
 }
 
