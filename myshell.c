@@ -17,8 +17,185 @@
 #include <ctype.h>
 #include <signal.h>
 
+//prototypes for void methods
+void pipeIndex(char **args, int pipeNum, int pipeCollection[]);
+void args_split(char **args, int start, int end, char **buf);
 
 extern char **getlineShell();
+
+/*
+ * Handle exit signals from child processes
+ */
+void sig_handler(int signal) {
+  int status;
+  int result = wait(&status);
+
+  printf("Wait returned %d\n", result);
+}
+
+/*
+ * The main shell function
+ */ 
+main() {
+  int i;
+  char **args; 
+  char **buf;	// buffer for sliced args
+  char **command; 
+  int result;
+  int block;
+  int output;
+  int input;
+  int append;
+  int logicalAnd;
+  char *output_filename;
+  char *input_filename;
+  char *append_filename;
+
+  // Set up the signal handler
+  //sigset(SIGCHLD, sig_handler);
+
+  // Loop forever
+  while(1) {
+
+    // Print out the prompt and get the input
+    printf("->");
+    args = getlineShell();
+
+    // No input, continue
+    if(args[0] == NULL)
+      continue;
+
+    // Check for internal shell commands, such as exit
+    if(internal_command(args))
+      continue;
+
+	// Check for pipes
+	int pipeNum = pipeNumCounter(args);
+
+	//printf("\npipenum is %d\n\n", pipeNum);
+
+	if (pipeNum > 0) {
+
+		// Check for an ampersand
+		block = (ampersand(args) == 0);
+
+
+
+		int fd[10][2];
+
+		int pipeCollection[pipeNum+2];
+		pipeIndex(args, pipeNum, pipeCollection);
+
+
+		int p;
+
+		for( i = 0; i < pipeNum+1; i++) {
+
+
+			// get args for loop iteration
+			args_split(args, pipeCollection[i], pipeCollection[i+1], buf);
+
+			// create first pipe
+			if (pipe(fd[i]) == -1) {
+				printf("error creating pipe");
+				break;
+			}
+
+			if (fork()==0) {
+				//child
+
+				if(i!=pipeNum) {
+					dup2(fd[i][1], 1);
+					close(fd[i][0]);
+					close(fd[i][1]);
+				}
+
+				if (i!=0) {
+					dup2(fd[i-1][0], STDIN_FILENO);
+					close(fd[i-1][0]);
+					close(fd[i-1][1]);
+				}
+
+				execvp(buf[0],buf);
+			}
+
+			//parent process
+			if(i!=0) {
+				close(fd[i-1][0]);
+				close(fd[i-1][1]);
+			}
+
+			wait(NULL);
+
+		}
+
+
+	}
+	else { 
+		// do this if no pipes
+
+
+		//Check for logicalAnd.
+		command = malloc(30 * sizeof(char*));
+		logicalAnd = and_command(args, command);
+
+		// Check for an ampersand
+		block = (ampersand(args) == 0);
+
+		// Check for redirected input
+		input = redirect_input(args, &input_filename);
+
+
+		switch(input) {
+		case -1:
+			printf("Syntax error!\n");
+			continue;
+			break;
+		case 0:
+			break;
+		case 1:
+			printf("Redirecting input from: %s\n", input_filename);
+			break;
+		}
+
+		// Check for append input
+		append = append_output(args, &append_filename);
+
+		switch(append) {
+		case -1:
+			printf("Syntax error!\n");
+			continue;
+			break;
+		case 0:
+			break;
+		case 1:
+			printf("Appending output to: %s\n", append_filename);
+			break;
+		}    
+
+
+		// Check for redirected output
+		output = redirect_output(args, &output_filename);
+
+		switch(output) {
+		case -1:
+			printf("Syntax error!\n");
+			continue;
+			break;
+		case 0:
+			break;
+		case 1:
+			printf("Redirecting output to: %s\n", output_filename);
+			break;
+		}
+
+		// Do the command
+		do_command(args, block, logicalAnd, command,
+	       input, input_filename, 
+	       output, output_filename, append, append_filename);
+	}
+  }
+}
 
 /*
  * Handle exit signals from child processes
@@ -28,6 +205,8 @@ extern char **getlineShell();
   int result = wait(&status);
   printf("Wait returned %d\n", result);
 }*/
+
+
 
 //Logical And
 int and_command(char **args, char **command){
@@ -53,101 +232,7 @@ int and_command(char **args, char **command){
 	return 0;
 }
 
-/*
- * The main shell function
- */ 
-main() {
-  int i;
-  char **args;
-  char **command; 
-  int result;
-  int block;
-  int output;
-  int input;
-  int append;
-  int logicalAnd;
-  char *output_filename;
-  char *input_filename;
-  char *append_filename;
 
-  // Set up the signal handler
- // sigset(SIGCHLD, sig_handler);
-
-  // Loop forever
-  while(1) {
-
-    // Print out the prompt and get the input
-    printf("->");
-    args = getlineShell();
-
-    // No input, continue
-    if(args[0] == NULL)
-      continue;
-
-    // Check for internal shell commands, such as exit
-    if(internal_command(args))
-      continue;
-
-    //Check for logicalAnd.
-    command = malloc(30 * sizeof(char*));
-    logicalAnd = and_command(args, command);
-    
-    // Check for an ampersand
-    block = (ampersand(args) == 0);
-		    
-    
-    //Check for redirected input
-    input = redirect_input(args, &input_filename);
-
-    switch(input) {
-    case -1:
-      printf("Syntax error!\n");
-      continue;
-      break;
-    case 0:
-      break;
-    case 1:
-      printf("Redirecting input from: %s\n", input_filename);
-      break;
-    }
-
-    // Check for append input
-    append = append_output(args, &append_filename);
-
-    switch(append) {
-    case -1:
-      printf("Syntax error!\n");
-      continue;
-      break;
-    case 0:
-      break;
-    case 1:
-      printf("Appending output to: %s\n", append_filename);
-      break;
-    }    
-
-
-    // Check for redirected output
-    output = redirect_output(args, &output_filename);
-
-    switch(output) {
-    case -1:
-      printf("Syntax error!\n");
-      continue;
-      break;
-    case 0:
-      break;
-    case 1:
-      printf("Redirecting output to: %s\n", output_filename);
-      break;
-    }
-
-    // Do the command
-    do_command(args, block, logicalAnd, command,
-	       input, input_filename, 
-	       output, output_filename, append, append_filename);
-  }
-}
 
 /*
  * Check for ampersand as the last argument
@@ -164,7 +249,7 @@ int ampersand(char **args) {
   } else {
     return 0;
   }
-  
+
   return 0;
 }
 
@@ -176,7 +261,7 @@ int internal_command(char **args) {
   if(strcmp(args[0], "exit") == 0) {
     exit(0);
   }
-  
+
   //cd command
   if(strcmp(args[0], "cd") == 0) {
     if(args[1] == NULL){
@@ -198,15 +283,16 @@ int internal_command(char **args) {
 /* 
  * Do the command
  */
+
 int do_command(char **args, int block, int logicalAnd, char **command,
 	       int input, char *input_filename,
 	       int output, char *output_filename, int append, char *append_filename) {
-  
+
   int result;
   pid_t child_id;
   int status;
   pid_t parent_gid;
-  
+
   //Get parent process group id
   parent_gid = getpgid(0);
 
@@ -232,7 +318,7 @@ int do_command(char **args, int block, int logicalAnd, char **command,
     if(output)
       freopen(output_filename, "w+", stdout);
 
-  
+
     if(append)
       freopen(append_filename, "a+", stdout);
 
@@ -247,7 +333,7 @@ int do_command(char **args, int block, int logicalAnd, char **command,
 
   // Wait for the child process to complete, if necessary
   if(block) {
-    printf("Waiting for child, pid = %d\n", child_id);
+    //printf("Waiting for child, pid = %d\n", child_id);
     result = waitpid(child_id, &status, 0);
   }else{
     tcsetpgrp(0, parent_gid);
@@ -257,6 +343,9 @@ int do_command(char **args, int block, int logicalAnd, char **command,
 
   //If command has a logical And (&&)
   if(logicalAnd){
+    //Check exit status
+    int exit_status = WEXITSTATUS(status);
+
     //Set up to check for another &&
     char **command2;
 
@@ -271,7 +360,7 @@ int do_command(char **args, int block, int logicalAnd, char **command,
     if(logicalAnd > 0){   //If 2d && found
       printf("%s\n", command2[0]);
       printf("%d\n", dif);
-      if(result > 0 && (dif >0 || dif < 0)){   //if result executed and first arg isnt false
+      if((exit_status < 0 || exit_status == 0) && (dif >0 || dif < 0)){   //if executed and first arg isnt false
         //Do second command
         do_command(command, block, 0, command,
           input, input_filename, 
@@ -281,9 +370,9 @@ int do_command(char **args, int block, int logicalAnd, char **command,
           input, input_filename, 
           output, output_filename, append, append_filename);
       }
-      
+
     } else {  //if only one &&
-      if(result > 0 && (dif >0 || dif < 0)){
+      if((exit_status < 0 || exit_status == 0) && (dif >0 || dif < 0)){
         //Do second command
         do_command(command, block, 0, command,
           input, input_filename, 
@@ -292,6 +381,7 @@ int do_command(char **args, int block, int logicalAnd, char **command,
     }
   }
 }
+
 
 /*
  * Check for input redirection
@@ -360,7 +450,7 @@ int redirect_output(char **args, char **output_filename) {
 int append_output(char **args, char **append_filename) {
 	int i;
 	int j;
-	
+
 	for(i = 0; args[i] != NULL; i++) {
 		// Look for the >>
 		// The parser doesn't parse the >> together
@@ -386,27 +476,53 @@ int append_output(char **args, char **append_filename) {
 	return 0;
 }
 
-//Checks if there are pipes
-int pipe_check(char **args){
-	int i;
 
-	for(i =0; args[i] != NULL; i++){
-		if(args[i][0] == "|"){
-			return 1;
+
+//this splits the string array into parts based on pipes
+void args_split(char **args, int start, int end, char **buf)
+{
+    int i;
+    int j = 0;
+    for (i = start+1; i < end; i++) {
+	//	printf("args index %d is %s\n",i, args[i]);
+        buf[j] = args[i];
+		j++;
+    }
+    buf[j] = NULL;
+}
+
+
+int pipeNumCounter(char **args) {
+	int i, pipeNum = 0;
+	for(i = 0; args[i] != NULL; i++) {
+		if(args[i][0] == '|') {
+			if(args[i][1] != '|') {
+				pipeNum++;
+			}
+		}	
+	}
+	return pipeNum;
+}
+
+// modifies pipeCollection array with indices of the pipes
+void pipeIndex(char **args, int pipeNum, int *pipeCollection) {
+	// first index has to be -1
+	pipeCollection[0] = -1;
+	int k;
+	int j = 1; // indexer for pipeCollection starts at 1 cuz index 0 is -1
+	for(k = 0; args[k] != NULL; k++) {
+		if(args[k][0] == '|') {
+			if(args[k][1] != '|') {
+				pipeCollection[j] = k;
+				j++;
+			}
+
+			//printf("j is %d\n", j);
 		}
 	}
-	return 0;
+
+
+	pipeCollection[j] = k;
+
 }
 
-// Count number of pipes
-int count_num_pipes(char **args) {
-	int num_pipes = 0;
-	int i;
-
-	for( i = 0; args[i] != NULL; i++){
-		if(args[i][0] == "|"){
-			num_pipes = num_pipes + 1;
-		}
-	}	
-	return num_pipes;
-}
